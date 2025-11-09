@@ -1,6 +1,5 @@
 import math
 
-# === YOUR DETAILS ===
 NAME = "Sthavir Kiran Kulkarni"
 USN = "1BM23CS342"
 
