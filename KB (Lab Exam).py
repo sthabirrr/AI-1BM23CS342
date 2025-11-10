@@ -1,57 +1,57 @@
 import itertools
+import re
 
-def pl_true(expr, model):
-    if isinstance(expr, str):
-        return model[expr]
-    elif isinstance(expr, tuple):
-        op = expr[0]
-        if op == "not":
-            return not pl_true(expr[1], model)
-        elif op == "and":
-            return pl_true(expr[1], model) and pl_true(expr[2], model)
-        elif op == "or":
-            return pl_true(expr[1], model) or pl_true(expr[2], model)
-        elif op == "implies":
-            return (not pl_true(expr[1], model)) or pl_true(expr[2], model)
-    return False
+def logic_to_python(expr):
+    
+    clauses = expr.split(',')
+    python_clauses = []
+    for clause in clauses:
+        clause = clause.strip()
+        
+        clause = clause.replace(' ', '')
+        clause = re.sub(r'(\([^()]+\)|[A-Za-z0-9_]+)=>(\([^()]+\)|[A-Za-z0-9_]+)',
+                          lambda m: f"(not {m.group(1)} or {m.group(2)})", clause)
+        clause = clause.replace('<=>', '==')
+        clause = clause.replace('∧', ' and ').replace('∨', ' or ').replace('¬', ' not ')
+        python_clauses.append(f"({clause})") 
+    
+    
+    return " and ".join(python_clauses)
 
-def get_symbols(expr):
-    if isinstance(expr, str):
-        return {expr}
-    elif isinstance(expr, tuple):
-        return get_symbols(expr[1]) | (get_symbols(expr[2]) if len(expr) > 2 else set())
-    return set()
+def evaluate(expr, model):
+    temp = expr
+    for sym, val in model.items():
+        temp = re.sub(r'\b' + re.escape(sym) + r'\b', str(val), temp)
+    try:
+        return eval(temp)
+    except Exception as e:
+        print("Error evaluating:", temp)
+        return False
 
-def tt_entails_print(KB, query):
-    symbols = list(get_symbols(KB) | get_symbols(query))
-    all_models = list(itertools.product([True, False], repeat=len(symbols)))
-
-    entailment = True
-    print("\nTruth Table Evaluation:")
-    print("-" * 50)
-    print("Model".ljust(20), "KB".ljust(10), "Query".ljust(10))
-    print("-" * 50)
-
-    for values in all_models:
+def entails(KB, query, symbols):
+    python_KB = logic_to_python(KB)
+    python_query = logic_to_python(query)
+    result = True
+    print(f"{' | '.join(symbols)} | KB | Query")
+    print('-' * (4 * len(symbols) + 15))
+    for values in itertools.product([True, False], repeat=len(symbols)):
         model = dict(zip(symbols, values))
-        kb_val = pl_true(KB, model)
-        q_val = pl_true(query, model)
-
-        print(str(model).ljust(20), str(kb_val).ljust(10), str(q_val).ljust(10))
-
+        kb_val = evaluate(python_KB, model)
+        q_val = evaluate(python_query, model)
+        row = ' | '.join(['T' if model[s] else 'F' for s in symbols])
+        row += f" | {'T' if kb_val else 'F'}  | {'T' if q_val else 'F'}"
+        print(row)
         if kb_val and not q_val:
-            entailment = False
+            result = False
+    return result
 
-    print("-" * 50)
-    return entailment
 
-KB = ("and", ("implies", "P", "Q"), "P")
-query = "Q"
+KB = input("Enter Knowledge Base (use ∧, ∨, ¬, =>): ")
+query = input("Enter Query (use ∧, ∨, ¬, =>): ")
+symbol_input = input("Enter symbols separated by spaces: ")
+symbols = symbol_input.split()
 
-result = tt_entails_print(KB, query)
-
-print("\nName: Sthavir K")
-print("USN : 1BM23CS342")
-print("\nKnowledge Base: (P → Q) and (P)")
-print("Query: Q")
-print("Does KB entail Query? :", "YES " if result else "NO ")
+if entails(KB, query, symbols):
+    print("KB entails Query.")
+else:
+    print("KB does NOT entail Query.")
